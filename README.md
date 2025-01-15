@@ -33,3 +33,12 @@ The `-s` argument filters messages by start date and `-e` argument filters messa
 python tweet-js.py -f tweet.js -s 2019-01-01 -e 2020-01-01
 ```
 
+## Options ##
+
+| Option | Long Option | Description |
+| - | - | - |
+| `-f` | `--file` | Path to Twitter JSON archive  `tweets.js` |
+| `-t` | `--hashtag` | Filter by hashtag |
+| `-g` | `--list-hashtags` | List the hashtags |
+| `-s` | `--date-start` | Start Date |
+| `-e` | `--date-end` | End Date |
