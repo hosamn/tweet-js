@@ -10,7 +10,7 @@ utc = pytz.UTC
 
 def read_twitter_json(file_name):
     """ Read JSON file and returns a json object"""
-    with open(file_name, "r") as tweets_file:
+    with open(file_name, "r", encoding="utf8") as tweets_file:
         tweets_lines = tweets_file.readlines()
     # Replace header
     tweets_lines[0] = tweets_lines[0].replace('window.YTD.tweet.part0 = ', '')
