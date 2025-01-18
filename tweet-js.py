@@ -2,121 +2,123 @@
 import datetime
 import json
 import pytz
-
+import os
 from dateutil.parser import parse
-from optparse import OptionParser
+from argparse import ArgumentParser
+# import pandas as pd
 
 utc = pytz.UTC
 
+
 def read_twitter_json(file_name):
-    """ Read JSON file and returns a json object"""
-    with open(file_name, "r", encoding="utf8") as tweets_file:
-        tweets_lines = tweets_file.readlines()
-    # Replace header
-    tweets_lines[0] = tweets_lines[0].replace('window.YTD.tweets.part0 = ', '')
-    # Convert list back to text
-    tweets_data = ''.join(tweets_lines)
-    # Parse JSON twitter data
-    tweets_js = json.loads(tweets_data)
-    return tweets_js
+    """Reads JSON file and returns a JSON object."""
+    if not os.path.exists(file_name):
+        raise FileNotFoundError(f"File not found: {file_name}")
+    try:
+        with open(file_name, "r", encoding="utf8") as tweets_file:
+            tweets_lines = tweets_file.readlines()
+        if tweets_lines:
+		    # Remove custom header
+            tweets_lines[0] = tweets_lines[0].replace('window.YTD.tweets.part0 = ', '')
+
+        # Convert list back to text
+        tweets_data = ''.join(tweets_lines)
+
+        # Parse JSON twitter data
+        tweets_js = json.loads(tweets_data)
+        return tweets_js
+
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Error decoding JSON: {e}\nCheck input file contents.")
+
 
 def tweet_decode(tweet):
-    """ Gets data from tweet and returns a simplified data structure
-        tweet = {
-            'full_text': 'This is a tweet #hello #world http://t.co/13456',
-            'urls': [ 'http://en.wikipedia.org/' ]
-            'hashtags': [ '#hello', '#world' ]
-        }
-    """
-    tweet_simple = {}
+    """Extracts and simplifies tweet data."""
     # Get data from tweet
-    tweet_simple['full_text'] = tweet['tweet']['full_text'] # Text
-    tweet_simple['created_at'] = tweet['tweet']['created_at'] # Text
-    tweet_simple['datetime'] = parse(tweet_simple['created_at']) # Parse date to datetime
+    tweet_simple = {
+        'full_text': tweet['tweet'].get('full_text', ''),
+        'created_at': tweet['tweet'].get('created_at', '')
+    }
 
-    # Initialize
-    tweet_simple['hashtags'] = [] # List
-    tweet_simple['urls'] = [] # URLs
+	# Parse date to datetime
+    tweet_simple['datetime'] = parse(tweet_simple['created_at'])
 
     # Process hashtags
-    hashtags = tweet['tweet']['entities']['hashtags'] # List of dictonaries
-    for tag in hashtags:
-        tweet_simple['hashtags'].append(tag['text'])
-
+    tweet_simple['hashtags'] = [tag['text'] for tag in tweet['tweet']['entities'].get('hashtags', [])]
     # Process URLs
-    urls = tweet['tweet']['entities']['urls'] # List of dictionaries
-    for url in urls:
-        tweet_simple['urls'].append(url['expanded_url'])
+    tweet_simple['urls'] = [url['expanded_url'] for url in tweet['tweet']['entities'].get('urls', [])]
 
     return tweet_simple
 
-def print_tweet(tweet):
-    print("\"\"\"{}\"\"\"".format(tweet['full_text']))
 
-## Parse options
-parser = OptionParser()
+# Argument parsing
+parser = ArgumentParser(description="Filter and process Twitter JSON data.")
+parser.add_argument("-f", "--file", required=True, help="Path to Twitter JSON archive.", metavar="FILENAME")
+parser.add_argument("-t", "--hashtag", help="Filter by hashtag", metavar="HASHTAG")
+parser.add_argument("-s", "--date-start", help="Start Date", metavar="START_DATE")
+parser.add_argument("-e", "--date-end", help="End Date", metavar="END_DATE")
+parser.add_argument("-g", "--list-hashtags", action="store_true", help="List the hashtags")
+parser.add_argument("-x", "--skip-retweets", action="store_true", help="Skip retweets")
 
-parser.add_option("-f", "--file", dest="filename",
-                  help="Path to Twitter JSON archive.", metavar="FILENAME")
+args = parser.parse_args()
 
-parser.add_option("-t", "--hashtag", dest="hashtag",
-                  help="Filter by hashtag", metavar="HASHTAG")
+# Validate and parse dates
+date_start = utc.localize(parse(args.date_start)) if args.date_start else None
+date_end = utc.localize(parse(args.date_end)) if args.date_end else None
 
-parser.add_option("-s", "--date-start", dest="date_start",
-                  help="Start Date", metavar="START_DATE")
+# Read Twitter file
+tweets_js = read_twitter_json(args.file)
 
-parser.add_option("-e", "--date-end", dest="date_end",
-                  help="End Date", metavar="END_DATE")
+# Sort it by date
+tweets_js = sorted(tweets_js, key=lambda x: parse(x['tweet']['created_at']))
 
-parser.add_option("-g", "--list-hashtags", action="store_true", dest="list_hashtags",
-                  help="List the hashtags")
+# Process tweets
 
-parser.add_option("-x", "--skip-retweets", action="store_true", dest="skip_ret",
-                  help="Get first hand tweets only and skip retweets")
+# Variable initialization
+outs = []      # This will be a list of post dictionaries
+hashtags = set()
 
-(options, args) = parser.parse_args()
-
-# Validate dates
-if (options.date_start):
-    date_start = utc.localize(parse(options.date_start))
-if (options.date_end):
-    date_end = utc.localize(parse(options.date_end))
-
-## Read Twitter file (JSON format)
-tweets_js = read_twitter_json(options.filename)
-
-## Variable initialization
-hashtags = []
-
-## Loop over tweets
+# Loop over tweets
 for tweet in tweets_js:
+    # Do Skip re-tweets?
+    if args.skip_retweets and tweet['tweet']['full_text'].startswith("RT @"):
+        continue
 
-    # Include or skip re-tweets
-    if options.skip_ret:
-        if tweet['tweet']['full_text'].startswith("RT @"):
-            continue
-        
     # Decode tweet in a simple structure
     tweet_simple = tweet_decode(tweet)
-    if options.date_start:
-        if tweet_simple['datetime'] <= date_start:
-            continue
-    if options.date_end:
-        if tweet_simple['datetime'] >= date_end:
-            continue
 
-    if options.hashtag:
+    # Will these two cause an error if there is no date_start?!
+    if date_start and tweet_simple['datetime'] <= date_start:
+        continue
+    if date_end and tweet_simple['datetime'] >= date_end:
+        continue
+
+    if args.hashtag:
         # Filter by hashtag
-        if (options.hashtag in tweet_simple['hashtags']):
-            print_tweet(tweet_simple)
-    elif (options.list_hashtags):
-        for tag in tweet_simple['hashtags']:
-            if (not tag in hashtags):
-                hashtags.append(tag)
+        if args.hashtag in tweet_simple['hashtags']:
+            outs.append(tweet_simple)
+    elif args.list_hashtags:
+        hashtags.update(tweet_simple['hashtags'])
     else:
-        print_tweet(tweet_simple)
+        outs.append(tweet_simple)
 
-## List hashtags
-if (options.list_hashtags):
-    for tag in hashtags:
+# List hashtags
+if args.list_hashtags:
+    for tag in sorted(hashtags):
         print(tag)
+
+
+# print(f"\"\"\"{tweet['full_text']}\"\"\"")
+
+# df = pd.DataFrame(outs)
+# print(
+#     df.head().to_markdown()
+# )
+
+# outs.reverse()   # Newer tweets first
+
+print(
+    *[tweet['full_text'] for tweet in outs],
+    sep="\n\n\n-----\n\n\n"
+)
+

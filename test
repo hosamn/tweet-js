@@ -1,0 +1,25 @@
+#!/usr/bin/bash
+
+echo -n "1. Exporting All_tweets ... "
+python tweet-js.py -f tweets.js > All_tweets.txt
+echo Done
+
+echo -n "2. Exporting No_re_tweets ... "
+python tweet-js.py -x -f tweets.js > No_re_tweets.txt
+echo Done
+
+echo -n "3. Exporting Hashtag_list ... "
+python tweet-js.py -g -f tweets.js > Hashtag_list.txt
+echo Done
+
+echo -n "4. Exporting hash_filtered_list ... "
+python tweet-js.py -t "يحدث_الآن" -f tweets.js > hash_filtered_list.txt
+echo Done
+
+echo -n "5. Exporting date_filtered_list ... "
+python tweet-js.py -s "2012" -e "5-2013" -f tweets.js > date_filtered_list.txt
+echo Done
+
+echo -n "6. Exporting multi_filtered_list ... "
+python tweet-js.py -t "يحدث_الآن" -s "26-2-2017" -e "28-2-2017" -f tweets.js > multi_filtered_list.txt
+echo Done
