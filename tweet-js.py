@@ -13,7 +13,7 @@ def read_twitter_json(file_name):
     with open(file_name, "r", encoding="utf8") as tweets_file:
         tweets_lines = tweets_file.readlines()
     # Replace header
-    tweets_lines[0] = tweets_lines[0].replace('window.YTD.tweet.part0 = ', '')
+    tweets_lines[0] = tweets_lines[0].replace('window.YTD.tweets.part0 = ', '')
     # Convert list back to text
     tweets_data = ''.join(tweets_lines)
     # Parse JSON twitter data
@@ -55,17 +55,24 @@ def print_tweet(tweet):
 
 ## Parse options
 parser = OptionParser()
+
 parser.add_option("-f", "--file", dest="filename",
                   help="Path to Twitter JSON archive.", metavar="FILENAME")
+
 parser.add_option("-t", "--hashtag", dest="hashtag",
                   help="Filter by hashtag", metavar="HASHTAG")
-parser.add_option("-g", "--list-hashtags", action="store_true",
-                  dest="list_hashtags",
-                  help="List the hashtags", metavar="LIST_HASHTAGS")
+
 parser.add_option("-s", "--date-start", dest="date_start",
-                  help="List the hashtags", metavar="LIST_HASHTAGS")
+                  help="Start Date", metavar="START_DATE")
+
 parser.add_option("-e", "--date-end", dest="date_end",
-                  help="List the hashtags", metavar="LIST_HASHTAGS")
+                  help="End Date", metavar="END_DATE")
+
+parser.add_option("-g", "--list-hashtags", action="store_true", dest="list_hashtags",
+                  help="List the hashtags")
+
+parser.add_option("-x", "--skip-retweets", action="store_true", dest="skip_ret",
+                  help="Get first hand tweets only and skip retweets")
 
 (options, args) = parser.parse_args()
 
@@ -83,6 +90,12 @@ hashtags = []
 
 ## Loop over tweets
 for tweet in tweets_js:
+
+    # Include or skip re-tweets
+    if options.skip_ret:
+        if tweet['tweet']['full_text'].startswith("RT @"):
+            continue
+        
     # Decode tweet in a simple structure
     tweet_simple = tweet_decode(tweet)
     if options.date_start:
